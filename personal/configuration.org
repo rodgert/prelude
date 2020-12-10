@@ -1,0 +1,242 @@
+This is my literate emacs configuration
+* Task - Things that need to be done here
+** TODO Figure out emacs perspectives
+** TODO Figure out emacs-hydra
+** TODO set up [[https://github.com/alphapapa/org-web-tools]]
+* Personal Information
+** TODO Change this once we move off of Google Apps for email
+#+BEGIN_SRC emacs-lisp
+(setq
+      user-mail-address "rodgert@appliantology.com"
+      user-full-name  "Thomas Rodgers")
+#+END_SRC
+
+* Utility Functions
+#+begin_src emacs-lisp
+  (use-package f
+    :ensure t)
+#+end_src
+* Shell
+#+BEGIN_SRC emacs-lisp
+  (use-package shell-pop
+    :bind ("C-x m" . shell-pop)
+    :config
+    (shell-pop--set-shell-type 'shell-pop-shell-type
+                               '("eshell" "*eshell*" (lambda () (eshell))))
+    (setq shell-pop-window-size 20))
+#+END_SRC
+* Helm
+#+BEGIN_SRC emacs-lisp
+    (use-package helm
+      :defer t
+      :bind ((:map helm-map
+                   ("<tab>" . helm-execute-persistent-action)
+                   ("C-i"   . helm-execute-persistent-action)
+                   ("C-z"   . helm-select-action)
+                   ("A-v"   . helm-previous-page))
+             ("M-x" . 'helm-M-x))
+      :config
+      (helm-autoresize-mode 1)
+      (setq helm-M-x-fuzzy-match t))
+
+    (use-package helm-projectile
+      :defer t
+      :config
+      (projectile-global-mode)
+      (setq projectile-completion-system 'helm)
+      (helm-projectile-on))
+#+END_SRC
+* Abbreviations and Snippets
+** We use [[https://www.gnu.org/software/emacs/manual/html_node/emacs/Abbrevs.html#Abbrevs][abbrev-mode]] for Abbreviations
+*** TODO Configure
+    see: [[https://jwiegley.github.io/use-package/keywords/][keywords :diminsh, :delight]]
+#+begin_src emacs-lisp
+  ;; TODO FIXME Error (use-package): abbrev/:config: Wrong number of arguments: if, 1 [2 times]
+  ;; (use-package abbrev
+  ;;   :diminish abbrev-mode
+  ;;   :config
+  ;;   (if (file-exists-p abbrev-file-name
+  ;;                     (quietly-read-abbrev-file))))
+#+end_src
+#+END_SRC
+** We use [[https://github.com/joaotavora/yasnippet][yasnippet]] for Snippits
+*** TODO Configure
+    see: [[http://www.howardism.org/Technical/Emacs/templates-tutorial.html]]
+* Org-Mode
+** Main org-mode settings
+#+BEGIN_SRC emacs-lisp
+  (use-package org
+    :bind
+    ("C-c c" . 'org-capture)
+    :config
+    ;; We keep our org files in ~/org by default
+    (setq org-directory "~/org")
+    ;; file names we use
+    (setq my/gtd-file "gtd.org"
+          my/inbox-file "inbox.org"
+          my/notes-file "notes.org"
+          my/index-file "index.org")
+    (setq org-default-notes-file (f-join org-directory my/notes-file))
+    (setq my/org-inbox-file (f-join org-directory my/inbox-file))
+    (setq my/org-personal-directory (f-join org-directory "personal")
+          my/org-projects-directory (f-join org-directory "projects")
+          my/org-redhat-directory (f-join org-directory "redhat"))
+    ;; For GTD workflows we store them thusly
+    (setq my/org-personal-gtd-file (f-join my/org-personal-directory my/gtd-file)
+          my/org-redhat-gtd-file (f-join my/org-redhat-directory my/gtd-file))
+    ;; For project specific workflows we store them thusly
+    (setq my/org-fedora-projects-file (f-join my/org-projects-directory "fedora.org")
+          my/org-wg21-projects-file (f-join my/org-projects-directory "wg21.org")
+          my/org-gcc-projects-file (f-join my/org-projects-directory "gcc.org"))
+    ;; We caputre emails as todo's
+    (setq org-capture-templates
+          '(("j" "journal-entry" entry (file+datetree "~/org/personal/journal.org")
+             "* %?"
+             :empty-lines 1)
+            ("p" "process-mail" entry (file+headline my/org-inbox-file "Tasks")
+             "* TODO [#A] %?\nSCHEDULED: %(org-insert-time-stamp (org-read-date nil t \"+0d\"))\n%a\n")
+            ("r" "Templates for reviewing stuff")
+            ("re" "review-mail" entry (file+headline my/org-inbox-file "Tasks")
+             "* REVIEW [#B] %:subject\nSCHEDULED: %(org-insert-time-stamp (org-read-date nil t \"+0d\"))\n%a\n")
+            ;; FIXME: Capture abort: Wrong type argument: char-or-string-p, nil
+            ;; ("rb" "review-bz with Clipboard" entry (file+headline "~/org/inbox.org" "Tasks")
+            ;;  "* REVIEW [#B] %?\nSCHEDULED: %(org-insert-timestamp (org-read-date nil t \"+0d\"))\n%c\n")
+            ))
+    ;; Our default TODO keewords and workflow states
+    (setq org-todo-keywords
+          '((sequence "TODO(t)" "STARTED(s)" "WAITING(w)" "|" "DONE(d)" "CANCELLED(c)" "DEFERRED(f)" )
+            (sequence "REVIEW(r)" "STARTED(s)" "|" "DONE(d)" "CANCELLED(c)" "DEFERRED(f)")))
+    (setq org-refile-targets '((my/org-personal-gtd-file :maxlevel . 2)
+                               (my/org-redhat-gtd-file :maxlevel . 2)
+                               (my/org-fedora-projects-file :maxlevel . 2)
+                               (my/org-wg21-projects-file :maxlevel . 2)
+                               (my/org-gcc-projects-file :maxlevel . 2)))
+    (setq org-refile-use-outline-path 'file)
+    (setq org-outline-path-complete-in-steps nil)
+    (setq org-refile-allow-creating-parent-nodes 'confirm)
+    )
+
+  (use-package org-projectile
+    :defer t
+    :config
+    (setq org-projectile-projects-directory (concat org-directory "/projects")
+          org-projectile-per-project-filepath "todo.org"))
+#+END_SRC
+** Agenda settings
+#+BEGIN_SRC emacs-lisp
+  (use-package org-agenda
+    :config
+    (setq org-agenda-files
+          (list my/org-inbox-file
+          my/org-personal-gtd-file
+          my/org-redhat-gtd-file
+          my/org-fedora-projects-file
+          my/org-gcc-projects-file
+          my/org-wg21-projects-file)))
+#+END_SRC
+** Journal settings
+#+begin_src emacs-lisp
+  (use-package org-journal
+    :ensure t
+    :init
+    (setq org-journal-dir "~/org/journal"
+          org-journal-file-format "%Y/%m/%Y%m%d"
+          org-journal-file-type 'weekly))
+#+end_src
+
+* Email
+** We use mu4e for email
+#+BEGIN_SRC emacs-lisp
+(use-package mu4e
+  :config
+  ;; Set mu4e as Emacs' default mail program
+  (setq mail-user-agent 'mu4e-user-agent)
+  ;; Use offlineimap to fetch mail
+  (setq mu4e-get-mail-command "offlineimap"
+        mu4e-update-interval 3600
+        mu4e-enable-notifications t
+        mu4e-enable-mode-line t)
+  ;; Set up Kolab as our smtp server
+  (setq message-send-mail-function 'smtpmail-send-it
+        smtpmail-stream-type 'starttls
+        smtpmail-default-smtp-server "smtp.kolabnow.com"
+        smtpmail-smtp-server "smtp.kolabnow.com"
+        smtpmail-smtp-service 587
+        smtpmail-auth-credentials "~/.netrc")
+  ;; Set appliantology as our default reply-to address
+  (setq mu4e-compose-reply-to-address "rodgert@appliantology.com")
+  ;; Set up folders
+  (setq mu4e-sent-folder   "/appliantology/Sent"
+        mu4e-drafts-folder "/appliantology/Drafts"
+        mu4e-trash-folder  "/appliantology/Trash")
+  ;; Don't save sent messages, Kolab takes care of populating Sent
+  (setq mu4e-sent-messages-behavior 'delete)
+)
+#+END_SRC
+** We use mu4e with org-mode
+#+BEGIN_SRC emacs-lisp
+  (use-package org-mu4e
+    :bind
+    ((:map mu4e-headers-mode-map
+      ("C-c c" . mu4e-org-store-and-capture)
+      :map mu4e-view-mode-map
+      ("C-c c" . mu4e-org-store-and-capture)))
+    :config
+    (setq mu4e-org-link-query-in-headers-mode nil)
+  )
+
+#+END_SRC
+** Miscellaneous email setup
+#+BEGIN_SRC emacs-lisp
+;; don't keep message buffers around
+(setq message-kill-buffer-on-exit t)
+#+END_SRC
+* Programming
+** Drawn from -
+   - [[https://tuhdo.github.io/c-ide.html][C/C++ Development Environment for Emacs]]
+** GNU Global + ggtags
+#+BEGIN_SRC emacs-lisp
+  (use-package ggtags
+    :ensure t
+    :bind ((:map ggtags-mode-map
+                 ("C-c g s" . 'ggtags-find-other-symbol)
+                 ("C-c g h" . 'ggtags-view-tag-history)
+                 ("C-c g r" . 'ggtags-find-reference)
+                 ("C-c g f" . 'ggtags-find-file)
+                 ("C-c g c" . 'ggtags-create-tags)
+                 ("C-c g u" . 'ggtags-update-tags)
+                 ("M-,"     . 'pop-tag-mark)))
+    :config
+    (add-hook 'c-mode-common-hook
+            (lambda ()
+              (when (derived-mode-p 'c-mode 'c++-mode 'java-mode 'asm-mode)
+                (ggtags-mode 1)))))
+
+  (use-package helm-gtags
+    :ensure t
+    :init (setq helm-gtags-ignore-case t
+                ;; FIXME this is borked
+                ;; helm-gtags-auto-update t
+                helm-gtags-use-input-at-cursor t
+                helm-gtags-pulse-at-cursor t
+                helm-gtags-prefix-key "\C-cg"
+                helm-gtags-suggested-key-mapping t)
+    :bind ((:map helm-gtags-mode-map
+                 ("C-c g a" . helm-gtags-tags-in-this-function)
+                 ("C-j"     . helm-gtags-select)
+                 ("M-."     . helm-gtags-dwim)
+                 ("M-,"     . helm-gtags-pop-stack)
+                 ("C-c <"   . helm-gtags-previous-history)
+                 ("C-c >"   . helm-gtags-next-history)))
+    :hook ((dired-mode . helm-gtags-mode)
+           (eshell-mode . helm-gtags-mode)
+           (c-mode . helm-gtags-mode)
+           (c+-mode . helm-gtags-mode)
+           (asm-mode. helm-gtags-mode)))
+
+  (use-package ws-butler
+    :ensure t
+    :hook (prog-mode . ws-butler-mode))
+#+END_SRC
+** C++
+* TODO Define C++ development environment
