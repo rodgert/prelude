@@ -1,10 +1,13 @@
 This is my literate emacs configuration
 * Task - Things that need to be done here
+** TODO Define C++ development environment
+** STARTED Set up erc + znc
 ** TODO Figure out emacs perspectives
 ** TODO Figure out emacs-hydra
 ** TODO set up [[https://github.com/alphapapa/org-web-tools]]
+** TODO Change [[*Personal Information][this]] once we move off of Google Apps for email
+
 * Personal Information
-** TODO Change this once we move off of Google Apps for email
 #+BEGIN_SRC emacs-lisp
 (setq
       user-mail-address "rodgert@appliantology.com"
@@ -15,6 +18,13 @@ This is my literate emacs configuration
 #+begin_src emacs-lisp
   (use-package f
     :ensure t)
+#+end_src
+* Miscellany
+** Use avy to do some searching
+#+begin_src emacs-lisp
+    (use-package avy
+      :ensure t
+      :bind (("M-s" . avy-goto-word-1)))
 #+end_src
 * Shell
 #+BEGIN_SRC emacs-lisp
@@ -88,33 +98,30 @@ This is my literate emacs configuration
     (setq my/org-fedora-projects-file (f-join my/org-projects-directory "fedora.org")
           my/org-wg21-projects-file (f-join my/org-projects-directory "wg21.org")
           my/org-gcc-projects-file (f-join my/org-projects-directory "gcc.org"))
-    ;; We caputre emails as todo's
-    (setq org-capture-templates
-          '(("j" "journal-entry" entry (file+datetree "~/org/personal/journal.org")
-             "* %?"
-             :empty-lines 1)
-            ("p" "process-mail" entry (file+headline my/org-inbox-file "Tasks")
-             "* TODO [#A] %?\nSCHEDULED: %(org-insert-time-stamp (org-read-date nil t \"+0d\"))\n%a\n")
-            ("r" "Templates for reviewing stuff")
-            ("re" "review-mail" entry (file+headline my/org-inbox-file "Tasks")
-             "* REVIEW [#B] %:subject\nSCHEDULED: %(org-insert-time-stamp (org-read-date nil t \"+0d\"))\n%a\n")
-            ;; FIXME: Capture abort: Wrong type argument: char-or-string-p, nil
-            ;; ("rb" "review-bz with Clipboard" entry (file+headline "~/org/inbox.org" "Tasks")
-            ;;  "* REVIEW [#B] %?\nSCHEDULED: %(org-insert-timestamp (org-read-date nil t \"+0d\"))\n%c\n")
-            ))
     ;; Our default TODO keewords and workflow states
-    (setq org-todo-keywords
-          '((sequence "TODO(t)" "STARTED(s)" "WAITING(w)" "|" "DONE(d)" "CANCELLED(c)" "DEFERRED(f)" )
-            (sequence "REVIEW(r)" "STARTED(s)" "|" "DONE(d)" "CANCELLED(c)" "DEFERRED(f)")))
+    (setq org-todo-keywords nil)
+    ;; we kinda want this, but trying out per file/section workflows
+    ;; (setq org-todo-keywords
+    ;;       '((sequence "TODO(t)" "STARTED(s)" "WAITING(w)" "|" "DONE(d)" "CANCELLED(c)" "DEFERRED(f)" )
+    ;;         (sequence "REVIEW(r)" "STARTED(s)" "|" "DONE(d)" "CANCELLED(c)" "DEFERRED(f)")
+    ;;         (sequence "MEETING(m)" "|" "MET(M)")))
+    ;; set global tags (note: helm ignores the single letter selector)
+    (setq org-tag-alist '(("personal" . ?p)
+                          ("redhat" . ?r)
+                          ("guitar" . ?g)
+                          ("libstdc++" . ?l)
+                          ("meeting" . ?M)
+                          ("wg21" . ?w)))
+    (setq org-complete-tags-always-offer-all-agenda-tags t)
     (setq org-refile-targets '((my/org-personal-gtd-file :maxlevel . 2)
                                (my/org-redhat-gtd-file :maxlevel . 2)
                                (my/org-fedora-projects-file :maxlevel . 2)
                                (my/org-wg21-projects-file :maxlevel . 2)
-                               (my/org-gcc-projects-file :maxlevel . 2)))
+                               (my/org-gcc-projects-file :maxlevel . 2)
+                               ("~/.emacs.d/personal/configuration.org" :maxlevel . 1)))
     (setq org-refile-use-outline-path 'file)
     (setq org-outline-path-complete-in-steps nil)
-    (setq org-refile-allow-creating-parent-nodes 'confirm)
-    )
+    (setq org-refile-allow-creating-parent-nodes 'confirm))
 
   (use-package org-projectile
     :defer t
@@ -132,7 +139,8 @@ This is my literate emacs configuration
           my/org-redhat-gtd-file
           my/org-fedora-projects-file
           my/org-gcc-projects-file
-          my/org-wg21-projects-file)))
+          my/org-wg21-projects-file
+          "~/.emacs.d/personal/configuration.org")))
 #+END_SRC
 ** Journal settings
 #+begin_src emacs-lisp
@@ -141,37 +149,88 @@ This is my literate emacs configuration
     :init
     (setq org-journal-dir "~/org/journal"
           org-journal-file-format "%Y/%m/%Y%m%d"
-          org-journal-file-type 'weekly))
+          org-journal-file-type 'weekly
+          org-journal-date-format "%A, %F"
+          org-journal-file-header "#+TITLE: Weekly Journal\n#+STARTUP: folded"))
 #+end_src
+** Pomodoro Technique
+#+begin_src emacs-lisp
+  (use-package org-pomodoro
+    :ensure t
+    :bind (("C-c C-x C-i" . org-pomodoro)))
+#+end_src
+** Capture templates
+#+begin_src emacs-lisp
+  (defun my/org-journal-find-location ()
+    ;; Open today's journal, but specify a non-nil prefix argument in order to
+    ;; inhibit inserting the heading; org-capture will insert the heading.
+    (org-journal-new-entry t)
+    (unless (eq org-journal-file-type 'daily)
+      (org-narrow-to-subtree))
+    (goto-char (point-max)))
 
+  (setq org-capture-templates
+        '(("j" "Journal entry" plain (function my/org-journal-find-location)
+           "** %(format-time-string org-journal-time-format)%^{Title}\n%i%?"
+           :jump-to-captured t :immediate-finish t)
+          ;; ("j" "journal-entry" entry (file+datetree "~/org/personal/journal.org")
+          ;;  "* %?"
+          ;;  :empty-lines 1)
+          ("p" "process-mail" entry (file+headline my/org-inbox-file "Tasks")
+           "* TODO [#A] %?\nSCHEDULED: %(org-insert-time-stamp (org-read-date nil t \"+0d\"))\n%a\n")
+          ("r" "Templates for reviewing stuff")
+          ("re" "review-mail" entry (file+headline my/org-inbox-file "Tasks")
+           "* REVIEW [#B] %:subject\nSCHEDULED: %(org-insert-time-stamp (org-read-date nil t \"+0d\"))\n%a\n")
+          ("t" "todo" entry (file+headline my/org-inbox-file "Tasks")
+           "* TODO %?\n%a\n")
+          ;; FIXME: Capture abort: Wrong type argument: char-or-string-p, nil
+          ;; ("rb" "review-bz with Clipboard" entry (file+headline "~/org/inbox.org" "Tasks")
+          ;;  "* REVIEW [#B] %?\nSCHEDULED: %(org-insert-timestamp (org-read-date nil t \"+0d\"))\n%c\n")
+          ))
+#+end_src
 * Email
 ** We use mu4e for email
 #+BEGIN_SRC emacs-lisp
-(use-package mu4e
-  :config
-  ;; Set mu4e as Emacs' default mail program
-  (setq mail-user-agent 'mu4e-user-agent)
-  ;; Use offlineimap to fetch mail
-  (setq mu4e-get-mail-command "offlineimap"
-        mu4e-update-interval 3600
-        mu4e-enable-notifications t
-        mu4e-enable-mode-line t)
-  ;; Set up Kolab as our smtp server
-  (setq message-send-mail-function 'smtpmail-send-it
-        smtpmail-stream-type 'starttls
-        smtpmail-default-smtp-server "smtp.kolabnow.com"
-        smtpmail-smtp-server "smtp.kolabnow.com"
-        smtpmail-smtp-service 587
-        smtpmail-auth-credentials "~/.netrc")
-  ;; Set appliantology as our default reply-to address
-  (setq mu4e-compose-reply-to-address "rodgert@appliantology.com")
-  ;; Set up folders
-  (setq mu4e-sent-folder   "/appliantology/Sent"
-        mu4e-drafts-folder "/appliantology/Drafts"
-        mu4e-trash-folder  "/appliantology/Trash")
-  ;; Don't save sent messages, Kolab takes care of populating Sent
-  (setq mu4e-sent-messages-behavior 'delete)
-)
+  (use-package mu4e
+    :config
+    ;; Set mu4e as Emacs' default mail program
+    (setq mail-user-agent 'mu4e-user-agent)
+    ;; Use offlineimap to fetch mail
+    ;; (setq mu4e-get-mail-command "offlineimap"
+    ;;       mu4e-update-interval 3600
+    ;;       mu4e-enable-notifications t
+    ;;       mu4e-enable-mode-line t)
+    ;; Set up Kolab as our smtp server
+    (setq message-send-mail-function 'smtpmail-send-it
+          smtpmail-stream-type 'starttls
+          smtpmail-default-smtp-server "smtp.kolabnow.com"
+          smtpmail-smtp-server "smtp.kolabnow.com"
+          smtpmail-smtp-service 587
+          smtpmail-auth-credentials "~/.netrc")
+    ;; Set appliantology as our default reply-to address
+    (setq mu4e-compose-reply-to-address "rodgert@appliantology.com")
+    ;; Set up folders
+    (setq mu4e-sent-folder   "/appliantology/Sent"
+          mu4e-drafts-folder "/appliantology/Drafts"
+          mu4e-trash-folder  "/appliantology/Trash")
+    ;; Don't save sent messages, Kolab takes care of populating Sent
+    (setq mu4e-sent-messages-behavior 'delete)
+    ;; (setq mu4e-contexts
+    ;;       '( , (make-mu4e-context
+    ;;             :name "appliantology"
+    ;;             :enter-func (lambda () (mu4e-message "Entering Appliantology context"))
+    ;;             :leave-func (lambda () (mu4e-message "Leaving Appliantology context"))
+    ;;             :match-func (lambda (msg)
+    ;;                           (when msg
+    ;;                             (mu4e-message-contact-field-matches msg
+    ;;                                                                 :to "rodgert@appliantology.com")))
+    ;;             :vars '( (user-mail-address      . "rodgert@appliantology.com")
+    ;;                      (user-full-name         . "Thomas Rodgers")
+    ;;                      ;; TODO anything else?
+    ;;                      )
+    ;;             )
+    ;;            ))
+  )
 #+END_SRC
 ** We use mu4e with org-mode
 #+BEGIN_SRC emacs-lisp
@@ -191,6 +250,20 @@ This is my literate emacs configuration
 ;; don't keep message buffers around
 (setq message-kill-buffer-on-exit t)
 #+END_SRC
+* IRC (erc)
+** We use erc for IRC
+#+begin_src emacs-lisp
+  (use-package erc
+    :ensure t
+    :config
+    (setq erc-prompt-for-password nil)
+    (setq auth-sources '((:source "~/.net")))
+    (defun erc-init ()
+      (interactive)
+      (erc :server "192.168.1.34" :port 8867 :nick "trodgers"))
+
+  )
+#+end_src
 * Programming
 ** Drawn from -
    - [[https://tuhdo.github.io/c-ide.html][C/C++ Development Environment for Emacs]]
@@ -239,4 +312,21 @@ This is my literate emacs configuration
     :hook (prog-mode . ws-butler-mode))
 #+END_SRC
 ** C++
-* TODO Define C++ development environment
+** Ruby
+#+begin_src emacs-lisp
+  (use-package rbenv
+    :ensure t
+    :config
+    (global-rbenv-mode))
+
+
+  (use-package ruby-electric
+    :ensure t)
+
+  (use-package enh-ruby-mode
+    :ensure t)
+
+  (use-package inf-ruby
+    :ensure t
+    :hook ((enh-ruby-mode-hook . inf-ruby-minor-mode)))
+#+end_src
